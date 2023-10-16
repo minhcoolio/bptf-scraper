@@ -9,6 +9,41 @@ from selenium_stealth import stealth
 import time
 import re
 
+'''
+listing class includes
+data members:
+- price
+- type: buy or sell
+- bot or human flag
+member functions:
+- constructor
+    * initiate price, type, and bot/human flag
+
+    
+possibly make a key listing class that inherits some functionality
+'''
+
+class Listing:
+    def __init__(self, listing):
+        self.price = extract_price(listing)
+        self.type = extract_type(listing)
+        self.is_bot = True
+    
+    def extract_price(listing):
+        data = listing.find(class_ = re.compile('item q-440*')) # Gets <div> with the listing info. Wildcard makes it general
+        temp = data.get('data-listing_price')
+        return convert_price(temp)
+    
+    def extract_type(listing):
+        data = listing.find(class_ = re.compile('item q-440*')) # Gets <div> with the listing info. Wildcard makes it general
+        temp = data.get('data-listing_intent')
+        return temp
+    
+    def extract_desc(listing):
+        pass
+
+
+
 # this function takes in beautiful soup html and pulls bp.tf buy and sell listings from a webpage and returns them in a single list
 def scrape(soup):
     listings = []
@@ -27,6 +62,20 @@ def sort_listings(listings):
         else:
             sell.append(inst)
     return buy, sell
+
+def find_key_avg():
+    driver.get("https://backpack.tf/stats/Unique/Mann%20Co.%20Supply%20Crate%20Key/Tradable/Craftable")
+    element = WebDriverWait(driver=driver, timeout=5)
+    html_src = driver.page_source
+
+    soup = BeautifulSoup(html_src, 'html.parser')
+    out = soup.find_all("ul", {"class": "media-list"})
+    listings = scrape(soup)
+    buy, sell = sort_listings(listings)
+
+    key_prices = extract_price(sell)
+    key_avg = sum(key_prices)/len(key_prices)
+    return key_avg
     
 # this function takes in a str which contains the listings price and converts it to a float and price into ref (not keys)
 def convert_price(ip, ref2key = 56.88):
@@ -79,7 +128,33 @@ def compare(listings):
         print('No arbitrage found :(')
     
     
-        
+def init_driver():
+    options = webdriver.ChromeOptions()
+    options.add_argument("start-maximized")
+    options.add_argument("--headless")
+    options.add_argument('--log-level=3') # hides extra info printed to console. Only shows fatal messages
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option('useAutomationExtension', False)
+    driver = webdriver.Chrome(options=options)
+
+    stealth(driver,
+        languages=["en-US", "en"],
+        vendor="Google Inc.",
+        platform="Win32",
+        webgl_vendor="Intel Inc.",
+        renderer="Intel Iris OpenGL Engine",
+        fix_hairline=True,
+        )
+    return driver
+
+def get_url(link):
+    driver = init_driver()
+    driver.get(link)
+    element = WebDriverWait(driver=driver, timeout=5)
+    html_src = driver.page_source
+    soup = BeautifulSoup(html_src, 'html.parser') # consider adding try statement here since it fails sometimes
+    return soup
+
     
 
 '''
@@ -96,6 +171,7 @@ options.add_argument("start-maximized")  # ensure window is full-screen
 options = webdriver.ChromeOptions()
 options.add_argument("start-maximized")
 options.add_argument("--headless")
+options.add_argument('--log-level=3') # hides extra info printed to console. Only shows fatal messages
 options.add_experimental_option("excludeSwitches", ["enable-automation"])
 options.add_experimental_option('useAutomationExtension', False)
 driver = webdriver.Chrome(options=options)
@@ -118,27 +194,31 @@ key_link = "https://backpack.tf/stats/Unique/Mann%20Co.%20Supply%20Crate%20Key/T
 driver.get(key_link)
 element = WebDriverWait(driver=driver, timeout=5)
 html_src = driver.page_source
-soup = BeautifulSoup(html_src, 'html.parser')
-temp = soup.find(class_ = "value")
-print(temp)
+soup = BeautifulSoup(html_src, 'html.parser') # consider adding try statement here since it fails sometimes
+temp = soup.find(class_ = "value").get_text() 
+price = temp.partition("-")
+print('hi')
+print(price)
 
 
 #driver = webdriver.Chrome(options=options)
 link = "https://backpack.tf/stats/Unique/Team%20Spirit/Tradable/Craftable"
 link2 = "https://backpack.tf/stats/Strange/Huntsman/Tradable/Craftable"
-driver.get(link2)
+driver.get(key_link)
 # wait for page to load
 element = WebDriverWait(driver=driver, timeout=5)
 html_src = driver.page_source
 
 soup = BeautifulSoup(html_src, 'html.parser')
 out = soup.find_all("ul", {"class": "media-list"})
-#print(soup.prettify())
 
 listings = scrape(soup)
 buy, sell = sort_listings(listings)
 
-test = extract_price(buy)
+key_prices = extract_price(sell)
+key_avg = sum(key_prices)/len(key_prices)
+
+#print(find_key_avg())
 
 '''
 # Sort listings into buy or sell
@@ -156,6 +236,8 @@ for inst in listings:
 data = listings[5].find(class_ = re.compile('item q-440*')) # Gets <div> with the listing info
 temp1 = data.get('data-listing_intent')
 temp2 = data.get('data-listing_price')
+
+
 
 #output = extract_price(temp2)
 
