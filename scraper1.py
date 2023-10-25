@@ -22,33 +22,43 @@ member functions:
     
 possibly make a key listing class that inherits some functionality
 '''
-
 class Listing:
     def __init__(self, listing):
-        self.price = extract_price(listing)
-        self.type = extract_type(listing)
-        self.is_bot = True
+        self.price = self.extract_price(listing)
+        self.type = self.extract_type(listing)
+        self.desc, self.spell_check = self.extract_desc(listing)
+        
+    def get_price(self):
+        return self.price
     
-    def extract_price(listing):
+    def extract_price(self, listing):
         data = listing.find(class_ = re.compile('item q-440*')) # Gets <div> with the listing info. Wildcard makes it general
         temp = data.get('data-listing_price')
         return convert_price(temp)
     
-    def extract_type(listing):
+    def extract_type(self, listing):
         data = listing.find(class_ = re.compile('item q-440*')) # Gets <div> with the listing info. Wildcard makes it general
         temp = data.get('data-listing_intent')
         return temp
     
-    def extract_desc(listing):
-        pass
-
-
+    def extract_desc(self, listing):
+        data = listing.find(class_ = re.compile('item q-440*')) # Gets <div> with the listing info. Wildcard makes it general
+        desc = data.get('data-listing_comment')
+        if desc is None:        # to catch listings without a desc
+            return 'Empty', False 
+        result = re.search(r"exo|exorcism|pumpkin|spells|spell|halloween", desc, re.IGNORECASE)
+        if result is None: # no keywords found, not a spell listing
+            return desc, False
+        else:                # keywords found, is a spell listing
+            return desc, True
+        
+        
 
 # this function takes in beautiful soup html and pulls bp.tf buy and sell listings from a webpage and returns them in a single list
 def scrape(soup):
     listings = []
     for i in soup.find_all("li", {"class": "listing"}):
-        listings.append(i)
+        listings.append( Listing(i) )
     return listings
 
 # this function takes in a list of listings and sorts them into buy and sell lists
@@ -56,21 +66,18 @@ def sort_listings(listings):
     buy = []
     sell = []
     for inst in listings:
-        data = inst.find(class_ = re.compile('item q-440*')) # Gets <div> with the listing info. Wildcard makes it general
-        if data.get('data-listing_intent') == "buy":
+        #data = inst.find(class_ = re.compile('item q-440*')) # Gets <div> with the listing info. Wildcard makes it general
+        if inst.type == "buy":
             buy.append(inst)
         else:
             sell.append(inst)
     return buy, sell
 
-def find_key_avg():
-    driver.get("https://backpack.tf/stats/Unique/Mann%20Co.%20Supply%20Crate%20Key/Tradable/Craftable")
-    element = WebDriverWait(driver=driver, timeout=5)
-    html_src = driver.page_source
-
-    soup = BeautifulSoup(html_src, 'html.parser')
-    out = soup.find_all("ul", {"class": "media-list"})
-    listings = scrape(soup)
+def find_key_avg(driver):
+    key_link = "https://backpack.tf/stats/Unique/Mann%20Co.%20Supply%20Crate%20Key/Tradable/Craftable"
+    soup = get_url(driver, key_link)
+    
+    listings = soup.find_all("ul", {"class": "media-list"})
     buy, sell = sort_listings(listings)
 
     key_prices = extract_price(sell)
@@ -99,11 +106,12 @@ def convert_price(ip, ref2key = 56.88):
 def extract_price(listings):
     price_list = []
     for inst in listings:
-        data = inst.find(class_ = re.compile('item q-440*')) # Gets <div> with the listing info. Wildcard makes it general
-        temp = data.get('data-listing_price')
-        price_list.append( convert_price(temp) )
+        price_list.append( inst.get_price() )
+        #data = inst.find(class_ = re.compile('item q-440*')) # Gets <div> with the listing info. Wildcard makes it general
+        #temp = data.get('data-listing_price')
+        #price_list.append( convert_price(temp) )
     return price_list
-    
+
 # this function takes in a list of listings and finds the lowest price
 # def find_low(listings):
 
@@ -114,6 +122,7 @@ def extract_price(listings):
 # def bot_check():    
 
 # this function compares buy list and a sell list and determines if there is arbitrage opportunity
+# need to ignore listings that have spells, implement the check here
 def compare(listings):
     buy, sell = sort_listings(listings)
     buy_prices = extract_price(buy)
@@ -127,7 +136,7 @@ def compare(listings):
     else:
         print('No arbitrage found :(')
     
-    
+# Initiates the driver    
 def init_driver():
     options = webdriver.ChromeOptions()
     options.add_argument("start-maximized")
@@ -147,15 +156,14 @@ def init_driver():
         )
     return driver
 
-def get_url(link):
-    driver = init_driver()
+# Takes in driver and link and returns html page as soup
+def get_url(driver, link):
+    #driver = init_driver()
     driver.get(link)
     element = WebDriverWait(driver=driver, timeout=5)
     html_src = driver.page_source
     soup = BeautifulSoup(html_src, 'html.parser') # consider adding try statement here since it fails sometimes
     return soup
-
-    
 
 '''
 # configure webdriver
@@ -165,6 +173,7 @@ options.add_argument("--window-size=1920,1080")  # set window size to native GUI
 options.add_argument("start-maximized")  # ensure window is full-screen
 # configure chrome browser to not load images and javascript
 '''
+''' #driver
 
 # configute webdriver
 # need to use stealth version to operate in headless mode. Cloudflare stops normal version if operating in headless mode
@@ -184,12 +193,15 @@ stealth(driver,
         renderer="Intel Iris OpenGL Engine",
         fix_hairline=True,
         )
+# driver '''
 '''
 chrome_options = webdriver.ChromeOptions()
 chrome_options.add_experimental_option(
     "prefs", {"profile.managed_default_content_settings.images": 2}
 )
 '''
+
+''' X
 key_link = "https://backpack.tf/stats/Unique/Mann%20Co.%20Supply%20Crate%20Key/Tradable/Craftable"
 driver.get(key_link)
 element = WebDriverWait(driver=driver, timeout=5)
@@ -199,8 +211,34 @@ temp = soup.find(class_ = "value").get_text()
 price = temp.partition("-")
 print('hi')
 print(price)
+X '''
 
+key_link = "https://backpack.tf/stats/Strange/Huntsman/Tradable/Craftable"
+driver = init_driver()
+soup1 = get_url(driver, key_link)
 
+temp = scrape(soup1)
+
+buy, sell = sort_listings(temp)
+
+#print(find_key_avg(driver))
+'''#XXXX
+temp = scrape(soup1)
+print(len(temp))
+test_listing = Listing(temp[8])
+print(test_listing.price)
+test_temp = test_listing.desc
+result = re.search(r"exo\b|exorcism|pumpkin|spell|halloween|footprint", test_temp, re.IGNORECASE)
+print(test_temp)
+print(result)
+
+testing = test_temp.split()
+print(testing[1])
+s = testing[1] #problem is some ads are in mathmetical alphanumeric which we need to convert to normal characters
+print([ord(c) for c in s])
+#XXXX'''
+
+''' XXX
 #driver = webdriver.Chrome(options=options)
 link = "https://backpack.tf/stats/Unique/Team%20Spirit/Tradable/Craftable"
 link2 = "https://backpack.tf/stats/Strange/Huntsman/Tradable/Craftable"
@@ -219,8 +257,8 @@ key_prices = extract_price(sell)
 key_avg = sum(key_prices)/len(key_prices)
 
 #print(find_key_avg())
-
-'''
+XXX '''
+''' XX
 # Sort listings into buy or sell
 buy = []
 sell = []
@@ -232,16 +270,14 @@ for inst in listings:
         buy.append(inst)
     else:
         sell.append(inst)
-'''
+
 data = listings[5].find(class_ = re.compile('item q-440*')) # Gets <div> with the listing info
 temp1 = data.get('data-listing_intent')
 temp2 = data.get('data-listing_price')
 
-
+XX '''
 
 #output = extract_price(temp2)
-
-
 
 '''
 # Find the search input element and enter a search query
