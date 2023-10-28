@@ -26,33 +26,45 @@ class Listing:
     def __init__(self, listing):
         self.price = self.extract_price(listing)
         self.type = self.extract_type(listing)
-        self.desc, self.spell_check = self.extract_desc(listing)
+        self.desc, self.is_spell = self.extract_desc(listing)
         
     def get_price(self):
         return self.price
     
     def extract_price(self, listing):
         data = listing.find(class_ = re.compile('item q-440*')) # Gets <div> with the listing info. Wildcard makes it general
+        if data is None:
+            data = listing.find(class_ = re.compile('item nocraft q-440*')) # used to catch noncraftable items
         temp = data.get('data-listing_price')
         return convert_price(temp)
     
     def extract_type(self, listing):
         data = listing.find(class_ = re.compile('item q-440*')) # Gets <div> with the listing info. Wildcard makes it general
+        if data is None:
+            data = listing.find(class_ = re.compile('item nocraft q-440*'))
         temp = data.get('data-listing_intent')
         return temp
     
     def extract_desc(self, listing):
         data = listing.find(class_ = re.compile('item q-440*')) # Gets <div> with the listing info. Wildcard makes it general
+        if data is None:
+            data = listing.find(class_ = re.compile('item nocraft q-440*'))
         desc = data.get('data-listing_comment')
         if desc is None:        # to catch listings without a desc
             return 'Empty', False 
-        result = re.search(r"exo|exorcism|pumpkin|spells|spell|halloween", desc, re.IGNORECASE)
+        result = re.search(r"exo|exorcism|pumpkin|spells|spell|halloween|footstep|voices from below", desc, re.IGNORECASE) # need to ignore spell listings due to inflated price
         if result is None: # no keywords found, not a spell listing
             return desc, False
         else:                # keywords found, is a spell listing
             return desc, True
-        
-        
+       
+# this function pulls all bptf links of each item in tf2 and stores it in a text file
+# run this function everyonce and a while to update the list when new items are added to the game
+def init_item_list(soup):
+    file = open("items.txt", "w")
+    for i in soup.find_all("a", {"class": "qlink"}):
+        file.write('https://backpack.tf' + i.get('href') + '\n') 
+    file.close()
 
 # this function takes in beautiful soup html and pulls bp.tf buy and sell listings from a webpage and returns them in a single list
 def scrape(soup):
@@ -66,11 +78,11 @@ def sort_listings(listings):
     buy = []
     sell = []
     for inst in listings:
-        #data = inst.find(class_ = re.compile('item q-440*')) # Gets <div> with the listing info. Wildcard makes it general
-        if inst.type == "buy":
-            buy.append(inst)
-        else:
-            sell.append(inst)
+        if inst.is_spell == False: # used to ignore spell listings
+            if inst.type == "buy":
+                buy.append(inst)
+            else:
+                sell.append(inst)
     return buy, sell
 
 def find_key_avg(driver):
@@ -122,19 +134,20 @@ def extract_price(listings):
 # def bot_check():    
 
 # this function compares buy list and a sell list and determines if there is arbitrage opportunity
-# need to ignore listings that have spells, implement the check here
-def compare(listings):
+def compare(listings, link):
+    file = open("results.txt", "w")
     buy, sell = sort_listings(listings)
-    buy_prices = extract_price(buy)
-    sell_prices = extract_price(sell)
+    buy_prices = list(filter(None, extract_price(buy))) # if price listed as dollar, it will appear as none, need to filter none out
+    sell_prices = list(filter(None, extract_price(sell)))
     
-    min_price = min(sell_prices)
-    max_price = max(buy_prices)
-    
-    if max_price < min_price:
-        print('Arbitrage Found!')
-    else:
-        print('No arbitrage found :(')
+    if (len(buy_prices) != 0) and (len(sell_prices) != 0): # if any of the lists are empty
+        min_price = min(sell_prices)
+        max_price = max(buy_prices)
+        
+        if max_price < min_price:
+            file.write(link + '\n') # arbitrage found, write item link to results page
+            print('Arbitrage found!')
+    file.close()
     
 # Initiates the driver    
 def init_driver():
@@ -155,6 +168,9 @@ def init_driver():
         fix_hairline=True,
         )
     return driver
+
+def kill_driver(driver):
+    driver.quit()
 
 # Takes in driver and link and returns html page as soup
 def get_url(driver, link):
@@ -213,13 +229,23 @@ print('hi')
 print(price)
 X '''
 
-key_link = "https://backpack.tf/stats/Strange/Huntsman/Tradable/Craftable"
+# Run these lines when you need to update the item list
+#soup_items = get_url(driver, "https://backpack.tf/spreadsheet")
+#init_item_list(soup_items)
+
+file = open('items.txt', 'r')
+items = file.readlines()
 driver = init_driver()
-soup1 = get_url(driver, key_link)
 
-temp = scrape(soup1)
+itere = 1
+for inst in items:
+    soup1 = get_url(driver, inst)
+    listings = scrape(soup1)
+    compare(listings, inst)
+    print("{}: {}\n".format(itere, inst))
+    itere = itere + 1
 
-buy, sell = sort_listings(temp)
+kill_driver(driver)
 
 #print(find_key_avg(driver))
 '''#XXXX
