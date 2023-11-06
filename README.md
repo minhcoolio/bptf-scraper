@@ -4,6 +4,9 @@ Python program that is designed to scrape the bp.tf website and find opportuniti
 
 I implemented this program using an OOP approach by parsing all necesssary info from the listings and categorizing the data into my own data type. This helped me keep organized and efficient code when working with many helper functions.
 
+### Chrome Version
+Make sure to use Chrome version version: 
+
 ### Updating item list
 This code takes in a pre-created item list stored in items.txt in order to start sifting the listings. Be sure to run the `init_item_list()` function every time a new item is added to the game in order to update the `items.txt` file.
 
